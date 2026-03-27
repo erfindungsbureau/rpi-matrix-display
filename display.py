@@ -12,12 +12,28 @@ from PIL import Image, ImageDraw, ImageFont
 from rgbmatrix import RGBMatrix, graphics
 from animations import ANIMATIONS
 
-SYSTEM_FONTS = [
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-    '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
-    '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-]
+FONT_STYLES = {
+    'regular': [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+    ],
+    'bold': [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+    ],
+    'italic': [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSansOblique.ttf',
+    ],
+    'bold-italic': [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSansBoldOblique.ttf',
+    ],
+}
 
 FONTS_DIR = os.path.join(os.path.dirname(__file__), 'fonts')
 
@@ -30,8 +46,8 @@ FONT_FILES = {
 }
 
 
-def parse_color(val):
-    """Akzeptiert '#RRGGBB', [r,g,b] oder (r,g,b). Fallback: Weiss."""
+def parse_color(val, default=(255, 255, 255)):
+    """Akzeptiert '#RRGGBB', [r,g,b] oder (r,g,b). Gibt graphics.Color zurück."""
     if isinstance(val, (list, tuple)) and len(val) == 3:
         return graphics.Color(int(val[0]), int(val[1]), int(val[2]))
     if isinstance(val, str) and val.startswith('#') and len(val) == 7:
@@ -40,7 +56,13 @@ def parse_color(val):
             int(val[3:5], 16),
             int(val[5:7], 16),
         )
-    return graphics.Color(255, 255, 255)
+    return graphics.Color(*default)
+
+
+def parse_rgb(val, default=(0, 0, 0)):
+    """Wie parse_color, gibt aber (r,g,b) Tupel zurück (für PIL)."""
+    c = parse_color(val, default)
+    return (c.red, c.green, c.blue)
 
 
 class DisplayManager:
@@ -184,10 +206,17 @@ class DisplayManager:
         self._canvas.Clear()
         self._canvas = self._matrix.SwapOnVSync(self._canvas)
 
-    def _find_system_font(self):
-        for p in SYSTEM_FONTS:
+    def _find_system_font(self, style='bold'):
+        """Gibt den Pfad zur ersten vorhandenen Systemschrift für den gewünschten Stil zurück."""
+        paths = FONT_STYLES.get(style, FONT_STYLES['bold'])
+        for p in paths:
             if os.path.exists(p):
                 return p
+        # Fallback: irgendeine verfügbare Schrift
+        for style_paths in FONT_STYLES.values():
+            for p in style_paths:
+                if os.path.exists(p):
+                    return p
         return None
 
     def _fit_font_size(self, font_path, text, max_w, max_h):
@@ -211,46 +240,49 @@ class DisplayManager:
     def _do_text(self, cmd: dict):
         text     = str(cmd.get('text', ''))
         color    = parse_color(cmd.get('color', '#FFFFFF'))
+        bgcolor  = parse_rgb(cmd.get('bgcolor', '#000000'), default=(0, 0, 0))
+        style    = cmd.get('style', 'bold')
         scroll   = bool(cmd.get('scroll', False))
-        speed    = float(cmd.get('speed', 30))    # Pixel pro Sekunde
-        duration = float(cmd.get('duration', 0))  # 0 = dauerhaft
+        speed    = float(cmd.get('speed', 30))
+        duration = float(cmd.get('duration', 0))
+        size     = cmd.get('size')
 
-        # Statischer Text: PIL-Rendering mit optionaler Grösse und Zeilenumbrüchen
         if not scroll:
-            self._do_text_autofit(text, color, duration,
-                                  x=cmd.get('x'), y=cmd.get('y'),
-                                  size=cmd.get('size'))
+            self._do_text_static(text, color, bgcolor, style, duration,
+                                 x=cmd.get('x'), y=cmd.get('y'), size=size)
             return
 
-        # Scrollender Text: hzeller BDF-Font
+        # Scrollender Text mit PIL (freie Grösse/Stil/Farbe)
+        if size is not None:
+            self._do_text_scroll_pil(text, color, bgcolor, style, speed, duration, int(size))
+            return
+
+        # Scrollender Text: BDF-Font (Fallback ohne size-Angabe)
         font   = self._load_font(cmd.get('font', 'medium'))
         text_w = sum(font.CharacterWidth(ord(c)) for c in text if ord(c) < 256)
-        y = int(cmd.get('y', self._height // 2 + font.height // 2))
+        y      = int(cmd.get('y', self._height // 2 + font.height // 2))
+        fps    = 30
+        delay  = 1.0 / fps
+        pf     = speed / fps
+        start  = time.time()
+        offset = 0.0
 
-        if scroll:
-            fps   = 30
-            delay = 1.0 / fps
-            pf    = speed / fps   # Pixel pro Frame
-            start = time.time()
-            offset = 0.0
+        while not self._should_stop():
+            if duration > 0 and time.time() - start > duration:
+                break
+            x_pos = int(self._width - offset)
+            self._canvas.Clear()
+            graphics.DrawText(self._canvas, font, x_pos, y, color, text)
+            self._canvas = self._matrix.SwapOnVSync(self._canvas)
+            offset += pf
+            if x_pos + text_w < 0:
+                offset = 0.0
+            time.sleep(delay)
 
-            while not self._should_stop():
-                if duration > 0 and time.time() - start > duration:
-                    break
-                x_pos = int(self._width - offset)
-                self._canvas.Clear()
-                graphics.DrawText(self._canvas, font, x_pos, y, color, text)
-                self._canvas = self._matrix.SwapOnVSync(self._canvas)
-                offset += pf
-                if x_pos + text_w < 0:
-                    offset = 0.0
-                time.sleep(delay)
-        # (statischer Text wird vor dem Scroll-Block via _do_text_autofit gerendert)
-
-    def _do_text_autofit(self, text, color, duration, x=None, y=None, size=None):
-        """Text rendern: size=None → automatisch maximale Grösse, sonst feste Grösse.
-        Zeilenumbrüche via \\n im text-Parameter werden unterstützt."""
-        font_path = self._find_system_font()
+    def _do_text_static(self, text, color, bgcolor, style, duration,
+                        x=None, y=None, size=None):
+        """Statischer Text: auto-fit oder feste Grösse, Zeilenumbrüche via \\n."""
+        font_path = self._find_system_font(style)
         if font_path:
             if size is None:
                 size = self._fit_font_size(font_path, text,
@@ -259,16 +291,53 @@ class DisplayManager:
         else:
             font = ImageFont.load_default()
 
-        img  = Image.new('RGB', (self._width, self._height), (0, 0, 0))
+        img  = Image.new('RGB', (self._width, self._height), bgcolor)
         draw = ImageDraw.Draw(img)
         bb   = draw.multiline_textbbox((0, 0), text, font=font, align='center')
         tw, th = bb[2] - bb[0], bb[3] - bb[1]
         px = int(x) if x is not None else (self._width  - tw) // 2 - bb[0]
         py = int(y) if y is not None else (self._height - th) // 2 - bb[1]
-        draw.multiline_text((px, py), text, fill=(color.red, color.green, color.blue),
+        draw.multiline_text((px, py), text,
+                            fill=(color.red, color.green, color.blue),
                             font=font, align='center')
         self._matrix.SetImage(img)
         self._hold(duration)
+
+    def _do_text_scroll_pil(self, text, color, bgcolor, style, speed, duration, size):
+        """Scrollender Text mit PIL – unterstützt freie Grösse, Stil und Hintergrundfarbe."""
+        font_path = self._find_system_font(style)
+        font = ImageFont.truetype(font_path, size) if font_path else ImageFont.load_default()
+
+        dummy = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+        bb     = dummy.textbbox((0, 0), text, font=font)
+        text_w = bb[2] - bb[0]
+        text_h = bb[3] - bb[1]
+        py     = (self._height - text_h) // 2 - bb[1]
+
+        # Text auf eigenes Image rendern
+        txt_img = Image.new('RGB', (text_w, self._height), bgcolor)
+        ImageDraw.Draw(txt_img).text(
+            (-bb[0], py), text,
+            fill=(color.red, color.green, color.blue), font=font
+        )
+
+        fps    = 30
+        delay  = 1.0 / fps
+        pf     = speed / fps
+        start  = time.time()
+        offset = 0.0
+
+        while not self._should_stop():
+            if duration > 0 and time.time() - start > duration:
+                break
+            frame = Image.new('RGB', (self._width, self._height), bgcolor)
+            x_pos = int(self._width - offset)
+            frame.paste(txt_img, (x_pos, 0))
+            self._matrix.SetImage(frame)
+            offset += pf
+            if x_pos + text_w < 0:
+                offset = 0.0
+            time.sleep(delay)
 
     def _do_animation(self, cmd: dict):
         """Eingebaute Animation abspielen."""

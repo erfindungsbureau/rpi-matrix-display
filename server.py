@@ -61,17 +61,20 @@ def display():
       {"type":"gif","url":"http://.../anim.gif","loops":3}
       {"type":"gif","url":"http://.../anim.gif","loops":0}  ← endlos
 
-    Parameter 'font':  tiny | small | medium (default) | large | huge
-    Parameter 'color': "#RRGGBB" oder [r,g,b]
+    Parameter 'color':   "#RRGGBB" oder [r,g,b]  (Textfarbe, default: weiss)
+    Parameter 'bgcolor': "#RRGGBB" oder [r,g,b]  (Hintergrundfarbe, default: schwarz)
+    Parameter 'style':   regular | bold (default) | italic | bold-italic
+    Parameter 'size':    Schriftgrösse in Pixel (default: automatisch)
+    Parameter 'scroll':  true/false (default: false)
+    Parameter 'speed':   Pixel/Sekunde beim Scrollen (default: 30)
     Parameter 'duration': Sekunden (0 = dauerhaft bis nächstes Kommando)
-    Parameter 'scroll': true/false (nur bei type=text)
-    Parameter 'speed':  Pixel/Sekunde beim Scrollen (default: 30)
-    Parameter 'x','y':  Position in Pixel (optional, default: zentriert)
-    Parameter 'size':   Schriftgrösse in Pixel (nur statischer Text, default: automatisch)
+    Parameter 'x','y':   Position in Pixel (optional, default: zentriert)
+    Parameter 'font':    tiny|small|medium|large|huge – nur bei scroll=true ohne size
 
-    Statischer Text (scroll=false oder weggelassen) wird automatisch so
-    skaliert dass er das gesamte Display ausfüllt, ausser 'size' ist gesetzt.
-    Zeilenumbrüche: \n im text-Feld, z.B. "Zeile1\nZeile2".
+    Statischer Text: füllt Display automatisch, ausser 'size' ist gesetzt.
+    Zeilenumbrüche: \\n im text-Feld, z.B. "Zeile1\\nZeile2" (nur statischer Text).
+    Scrollender Text mit 'size': PIL-Rendering (freie Grösse, Stil, Farbe).
+    Scrollender Text ohne 'size': BDF-Bitmap-Font (schneller, weniger flexibel).
 
     Animation (GET /animations für alle verfügbaren Namen):
       {"type":"animation","name":"rainbow"}
