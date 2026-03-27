@@ -7,8 +7,16 @@ import threading
 import time
 import requests
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from rgbmatrix import RGBMatrix, graphics
+from animations import ANIMATIONS
+
+SYSTEM_FONTS = [
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+    '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+]
 
 FONTS_DIR = os.path.join(os.path.dirname(__file__), 'fonts')
 
@@ -93,10 +101,11 @@ class DisplayManager:
                 self._status = {'type': t, 'text': cmd.get('text', '')}
 
             try:
-                if   t == 'text':  self._do_text(cmd)
-                elif t == 'image': self._do_image(cmd)
-                elif t == 'gif':   self._do_gif(cmd)
-                elif t == 'clear': self._do_clear()
+                if   t == 'text':      self._do_text(cmd)
+                elif t == 'image':     self._do_image(cmd)
+                elif t == 'gif':       self._do_gif(cmd)
+                elif t == 'animation': self._do_animation(cmd)
+                elif t == 'clear':     self._do_clear()
                 else:
                     print(f'Unbekannter Typ: {t}')
             except Exception as e:
@@ -127,14 +136,45 @@ class DisplayManager:
         self._canvas.Clear()
         self._canvas = self._matrix.SwapOnVSync(self._canvas)
 
+    def _find_system_font(self):
+        for p in SYSTEM_FONTS:
+            if os.path.exists(p):
+                return p
+        return None
+
+    def _fit_font_size(self, font_path, text, max_w, max_h):
+        """Grösste Schriftgrösse bei der `text` in max_w×max_h passt."""
+        lo, hi, best = 8, max_h, 8
+        dummy = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            try:
+                font = ImageFont.truetype(font_path, mid)
+                bb   = dummy.textbbox((0, 0), text, font=font)
+                if bb[2] - bb[0] <= max_w and bb[3] - bb[1] <= max_h:
+                    best = mid
+                    lo   = mid + 1
+                else:
+                    hi = mid - 1
+            except Exception:
+                break
+        return best
+
     def _do_text(self, cmd: dict):
         text     = str(cmd.get('text', ''))
         color    = parse_color(cmd.get('color', '#FFFFFF'))
-        font     = self._load_font(cmd.get('font', 'medium'))
         scroll   = bool(cmd.get('scroll', False))
         speed    = float(cmd.get('speed', 30))    # Pixel pro Sekunde
         duration = float(cmd.get('duration', 0))  # 0 = dauerhaft
 
+        # Statischer Text: PIL-Rendering mit automatischer Grösse
+        if not scroll:
+            self._do_text_autofit(text, color, duration,
+                                  x=cmd.get('x'), y=cmd.get('y'))
+            return
+
+        # Scrollender Text: hzeller BDF-Font
+        font   = self._load_font(cmd.get('font', 'medium'))
         text_w = sum(font.CharacterWidth(ord(c)) for c in text if ord(c) < 256)
         y = int(cmd.get('y', self._height // 2 + font.height // 2))
 
@@ -156,12 +196,49 @@ class DisplayManager:
                 if x_pos + text_w < 0:
                     offset = 0.0
                 time.sleep(delay)
+        # (statischer Text wird vor dem Scroll-Block via _do_text_autofit gerendert)
+
+    def _do_text_autofit(self, text, color, duration, x=None, y=None):
+        """Text so gross wie möglich rendern sodass er auf das Display passt."""
+        font_path = self._find_system_font()
+        if font_path:
+            size = self._fit_font_size(font_path, text,
+                                       self._width - 4, self._height - 4)
+            font = ImageFont.truetype(font_path, size)
         else:
-            x = int(cmd.get('x', max(0, (self._width - text_w) // 2)))
-            self._canvas.Clear()
-            graphics.DrawText(self._canvas, font, x, y, color, text)
-            self._canvas = self._matrix.SwapOnVSync(self._canvas)
-            self._hold(duration)
+            font = ImageFont.load_default()
+
+        img  = Image.new('RGB', (self._width, self._height), (0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        bb   = draw.textbbox((0, 0), text, font=font)
+        tw, th = bb[2] - bb[0], bb[3] - bb[1]
+        px = int(x) if x is not None else (self._width  - tw) // 2 - bb[0]
+        py = int(y) if y is not None else (self._height - th) // 2 - bb[1]
+        draw.text((px, py), text, fill=(color.red, color.green, color.blue), font=font)
+        self._matrix.SetImage(img)
+        self._hold(duration)
+
+    def _do_animation(self, cmd: dict):
+        """Eingebaute Animation abspielen."""
+        name     = cmd.get('name', '')
+        duration = float(cmd.get('duration', 0))
+        anim_fn  = ANIMATIONS.get(name)
+        if not anim_fn:
+            print(f'Unbekannte Animation: "{name}". Verfügbar: {list(ANIMATIONS)}')
+            return
+
+        start = __import__('time').time()
+
+        def stop():
+            if self._should_stop():
+                return True
+            if duration > 0 and __import__('time').time() - start > duration:
+                return True
+            return False
+
+        anim_fn(self._matrix, self._width, self._height, stop)
+        if not self._should_stop():
+            self._do_clear()
 
     def _do_image(self, cmd: dict):
         img = self._fetch_image(cmd)

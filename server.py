@@ -67,6 +67,19 @@ def display():
     Parameter 'scroll': true/false (nur bei type=text)
     Parameter 'speed':  Pixel/Sekunde beim Scrollen (default: 30)
     Parameter 'x','y':  Position in Pixel (optional, default: zentriert)
+
+    Statischer Text (scroll=false oder weggelassen) wird automatisch so
+    skaliert dass er das gesamte Display ausfüllt.
+
+    Animation (GET /animations für alle verfügbaren Namen):
+      {"type":"animation","name":"rainbow"}
+      {"type":"animation","name":"fire","duration":30}
+      {"type":"animation","name":"clock"}
+      {"type":"animation","name":"plasma"}
+      {"type":"animation","name":"matrix_rain","duration":60}
+      {"type":"animation","name":"starfield"}
+      {"type":"animation","name":"bouncing_ball"}
+      {"type":"animation","name":"color_pulse"}
     """
     cmd = request.get_json(silent=True)
     if not cmd or 'type' not in cmd:
@@ -89,6 +102,13 @@ def brightness():
     val  = int(data.get('value', 80))
     manager.set_brightness(val)
     return jsonify({'ok': True, 'brightness': val})
+
+
+@app.route('/animations', methods=['GET'])
+def list_animations():
+    """Alle verfügbaren eingebauten Animationen auflisten."""
+    from animations import ANIMATIONS
+    return jsonify({'animations': list(ANIMATIONS.keys())})
 
 
 @app.route('/status', methods=['GET'])
