@@ -10,7 +10,10 @@
     "rows":     64,
     "cols":     64,
     "chain":    5,
-    "parallel": 2
+    "parallel": 2,
+
+    "_comment_pixel_mapper": "Verkabelung von hinten L→R = von vorne gespiegelt → Mirror:H. Leer lassen falls korrekt.",
+    "pixel_mapper": "Mirror:H"
   },
 
   "hardware": {

@@ -21,13 +21,14 @@ _cfg_path = os.path.join(os.path.dirname(__file__), 'config.json')
 with open(_cfg_path) as _f:
     _cfg = json.load(_f)
 
-ROWS       = _cfg['panel']['rows']
-COLS       = _cfg['panel']['cols']
-CHAIN      = _cfg['panel']['chain']
-PARALLEL   = _cfg['panel']['parallel']
-BRIGHTNESS = _cfg['hardware']['brightness']
-SLOWDOWN   = _cfg['hardware']['gpio_slowdown']
-PORT       = _cfg['server']['port']
+ROWS         = _cfg['panel']['rows']
+COLS         = _cfg['panel']['cols']
+CHAIN        = _cfg['panel']['chain']
+PARALLEL     = _cfg['panel']['parallel']
+PIXEL_MAPPER = _cfg['panel'].get('pixel_mapper', '')
+BRIGHTNESS   = _cfg['hardware']['brightness']
+SLOWDOWN     = _cfg['hardware']['gpio_slowdown']
+PORT         = _cfg['server']['port']
 
 # Berechnete Gesamtauflösung
 TOTAL_WIDTH  = COLS * CHAIN
@@ -116,10 +117,11 @@ def main():
     options.cols             = COLS
     options.chain_length     = CHAIN
     options.parallel         = PARALLEL
-    options.hardware_mapping = 'regular'   # Adafruit Triple Matrix Bonnet #6358
-    options.gpio_slowdown    = SLOWDOWN
-    options.brightness       = BRIGHTNESS
-    options.drop_privileges  = False       # läuft als root via systemd
+    options.hardware_mapping    = 'regular'   # Adafruit Triple Matrix Bonnet #6358
+    options.gpio_slowdown       = SLOWDOWN
+    options.brightness          = BRIGHTNESS
+    options.pixel_mapper_config = PIXEL_MAPPER
+    options.drop_privileges     = False       # läuft als root via systemd
 
     manager = DisplayManager(options)
 
