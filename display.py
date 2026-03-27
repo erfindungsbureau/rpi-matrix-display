@@ -3,6 +3,7 @@ DisplayManager – steuert die HUB75 LED-Matrix via rpi-rgb-led-matrix.
 Läuft in einem eigenen Thread; Kommandos werden via send_command() übergeben.
 """
 import os
+import subprocess
 import threading
 import time
 import requests
@@ -76,7 +77,54 @@ class DisplayManager:
 
     def get_status(self) -> dict:
         with self._cmd_lock:
-            return dict(self._status)
+            status = dict(self._status)
+        status['system'] = self._system_info()
+        return status
+
+    def _system_info(self) -> dict:
+        info = {}
+
+        # CPU-Auslastung (1-Minuten-Durchschnitt)
+        try:
+            with open('/proc/loadavg') as f:
+                load1 = float(f.read().split()[0])
+            info['cpu_load_1min'] = load1
+        except Exception:
+            pass
+
+        # CPU-Temperatur
+        try:
+            with open('/sys/class/thermal/thermal_zone0/temp') as f:
+                info['cpu_temp_c'] = round(int(f.read().strip()) / 1000.0, 1)
+        except Exception:
+            pass
+
+        # RPi Throttle-Status (Unterspannung, Taktdrosselung)
+        try:
+            out = subprocess.check_output(
+                ['vcgencmd', 'get_throttled'], timeout=2,
+                stderr=subprocess.DEVNULL
+            ).decode().strip()
+            # Format: "throttled=0x50005"
+            val = int(out.split('=')[1], 16)
+            BITS = {
+                0x00001: 'undervoltage_now',
+                0x00002: 'freq_capped_now',
+                0x00004: 'throttled_now',
+                0x00008: 'temp_limit_now',
+                0x10000: 'undervoltage_occurred',
+                0x20000: 'freq_capped_occurred',
+                0x40000: 'throttled_occurred',
+                0x80000: 'temp_limit_occurred',
+            }
+            warnings = [name for bit, name in BITS.items() if val & bit]
+            info['throttled_raw'] = hex(val)
+            info['warnings'] = warnings
+            info['power_ok'] = not any('undervoltage' in w for w in warnings)
+        except Exception:
+            pass
+
+        return info
 
     # ------------------------------------------------------------------
     # Interner Dispatch-Loop
