@@ -9,8 +9,8 @@
 
     "rows":     64,
     "cols":     64,
-    "chain":    1,
-    "parallel": 1
+    "chain":    5,
+    "parallel": 2
   },
 
   "hardware": {
