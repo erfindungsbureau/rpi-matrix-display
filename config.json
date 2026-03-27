@@ -18,7 +18,7 @@
 
   "hardware": {
     "_comment_gpio_slowdown": "1=RPi3, 2=RPi3+, 4=RPi4 – erhöhen bei Flackern",
-    "gpio_slowdown": 4,
+    "gpio_slowdown": 2,
     "brightness":    80
   },
 

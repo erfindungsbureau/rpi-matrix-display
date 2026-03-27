@@ -6,12 +6,16 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=INSTALL_DIR
-ExecStart=/usr/bin/python3 INSTALL_DIR/server.py
+# taskset -c 3: Matrix-Prozess auf CPU-Kern 3 isolieren (RPi3 hat 4 Kerne)
+ExecStart=taskset -c 3 /usr/bin/python3 INSTALL_DIR/server.py
 # Konfiguration via config.json – keine Env-Vars nötig
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
+# Echtzeit-Priorität für stabiles GPIO-Timing
+CPUSchedulingPolicy=rr
+CPUSchedulingPriority=10
 
 [Install]
 WantedBy=multi-user.target
