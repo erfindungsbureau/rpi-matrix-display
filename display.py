@@ -143,14 +143,14 @@ class DisplayManager:
         return None
 
     def _fit_font_size(self, font_path, text, max_w, max_h):
-        """Grösste Schriftgrösse bei der `text` in max_w×max_h passt."""
+        """Grösste Schriftgrösse bei der `text` in max_w×max_h passt (multiline-fähig)."""
         lo, hi, best = 8, max_h, 8
         dummy = ImageDraw.Draw(Image.new('RGB', (1, 1)))
         while lo <= hi:
             mid = (lo + hi) // 2
             try:
                 font = ImageFont.truetype(font_path, mid)
-                bb   = dummy.textbbox((0, 0), text, font=font)
+                bb   = dummy.multiline_textbbox((0, 0), text, font=font)
                 if bb[2] - bb[0] <= max_w and bb[3] - bb[1] <= max_h:
                     best = mid
                     lo   = mid + 1
@@ -167,10 +167,11 @@ class DisplayManager:
         speed    = float(cmd.get('speed', 30))    # Pixel pro Sekunde
         duration = float(cmd.get('duration', 0))  # 0 = dauerhaft
 
-        # Statischer Text: PIL-Rendering mit automatischer Grösse
+        # Statischer Text: PIL-Rendering mit optionaler Grösse und Zeilenumbrüchen
         if not scroll:
             self._do_text_autofit(text, color, duration,
-                                  x=cmd.get('x'), y=cmd.get('y'))
+                                  x=cmd.get('x'), y=cmd.get('y'),
+                                  size=cmd.get('size'))
             return
 
         # Scrollender Text: hzeller BDF-Font
@@ -198,23 +199,26 @@ class DisplayManager:
                 time.sleep(delay)
         # (statischer Text wird vor dem Scroll-Block via _do_text_autofit gerendert)
 
-    def _do_text_autofit(self, text, color, duration, x=None, y=None):
-        """Text so gross wie möglich rendern sodass er auf das Display passt."""
+    def _do_text_autofit(self, text, color, duration, x=None, y=None, size=None):
+        """Text rendern: size=None → automatisch maximale Grösse, sonst feste Grösse.
+        Zeilenumbrüche via \\n im text-Parameter werden unterstützt."""
         font_path = self._find_system_font()
         if font_path:
-            size = self._fit_font_size(font_path, text,
-                                       self._width - 4, self._height - 4)
-            font = ImageFont.truetype(font_path, size)
+            if size is None:
+                size = self._fit_font_size(font_path, text,
+                                           self._width - 4, self._height - 4)
+            font = ImageFont.truetype(font_path, int(size))
         else:
             font = ImageFont.load_default()
 
         img  = Image.new('RGB', (self._width, self._height), (0, 0, 0))
         draw = ImageDraw.Draw(img)
-        bb   = draw.textbbox((0, 0), text, font=font)
+        bb   = draw.multiline_textbbox((0, 0), text, font=font, align='center')
         tw, th = bb[2] - bb[0], bb[3] - bb[1]
         px = int(x) if x is not None else (self._width  - tw) // 2 - bb[0]
         py = int(y) if y is not None else (self._height - th) // 2 - bb[1]
-        draw.text((px, py), text, fill=(color.red, color.green, color.blue), font=font)
+        draw.multiline_text((px, py), text, fill=(color.red, color.green, color.blue),
+                            font=font, align='center')
         self._matrix.SetImage(img)
         self._hold(duration)
 

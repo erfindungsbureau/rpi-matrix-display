@@ -67,9 +67,11 @@ def display():
     Parameter 'scroll': true/false (nur bei type=text)
     Parameter 'speed':  Pixel/Sekunde beim Scrollen (default: 30)
     Parameter 'x','y':  Position in Pixel (optional, default: zentriert)
+    Parameter 'size':   Schriftgrösse in Pixel (nur statischer Text, default: automatisch)
 
     Statischer Text (scroll=false oder weggelassen) wird automatisch so
-    skaliert dass er das gesamte Display ausfüllt.
+    skaliert dass er das gesamte Display ausfüllt, ausser 'size' ist gesetzt.
+    Zeilenumbrüche: \n im text-Feld, z.B. "Zeile1\nZeile2".
 
     Animation (GET /animations für alle verfügbaren Namen):
       {"type":"animation","name":"rainbow"}
