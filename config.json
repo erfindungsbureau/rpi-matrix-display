@@ -1,0 +1,25 @@
+{
+  "_comment": "Zentrale Konfiguration – hier Anzahl und Anordnung der Panels definieren.",
+
+  "panel": {
+    "_comment_rows":    "Zeilen pro Panel (typisch 32 oder 64)",
+    "_comment_cols":    "Spalten pro Panel (typisch 32, 64 oder 128)",
+    "_comment_chain":   "Panels in Serie pro Ausgang  → Gesamtbreite  = cols × chain",
+    "_comment_parallel":"Parallele Ausgänge (1–3)      → Gesamthöhe   = rows × parallel",
+
+    "rows":     64,
+    "cols":     64,
+    "chain":    1,
+    "parallel": 1
+  },
+
+  "hardware": {
+    "_comment_gpio_slowdown": "1=RPi3, 2=RPi3+, 4=RPi4 – erhöhen bei Flackern",
+    "gpio_slowdown": 4,
+    "brightness":    80
+  },
+
+  "server": {
+    "port": 5050
+  }
+}

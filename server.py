@@ -11,18 +11,27 @@ Endpunkte:
 """
 import os
 import sys
+import json
 from flask import Flask, request, jsonify
 
 # -----------------------------------------------------------------------
-# Konfiguration via Umgebungsvariablen (Defaults für RPi 4 + 64×64 Panel)
+# Konfiguration aus config.json laden
 # -----------------------------------------------------------------------
-ROWS       = int(os.environ.get('MATRIX_ROWS',       64))
-COLS       = int(os.environ.get('MATRIX_COLS',       64))
-CHAIN      = int(os.environ.get('MATRIX_CHAIN',       1))
-PARALLEL   = int(os.environ.get('MATRIX_PARALLEL',    1))
-BRIGHTNESS = int(os.environ.get('MATRIX_BRIGHTNESS', 80))
-SLOWDOWN   = int(os.environ.get('MATRIX_SLOWDOWN',    4))  # 4 = RPi 4
-PORT       = int(os.environ.get('SERVER_PORT',      5050))
+_cfg_path = os.path.join(os.path.dirname(__file__), 'config.json')
+with open(_cfg_path) as _f:
+    _cfg = json.load(_f)
+
+ROWS       = _cfg['panel']['rows']
+COLS       = _cfg['panel']['cols']
+CHAIN      = _cfg['panel']['chain']
+PARALLEL   = _cfg['panel']['parallel']
+BRIGHTNESS = _cfg['hardware']['brightness']
+SLOWDOWN   = _cfg['hardware']['gpio_slowdown']
+PORT       = _cfg['server']['port']
+
+# Berechnete Gesamtauflösung
+TOTAL_WIDTH  = COLS * CHAIN
+TOTAL_HEIGHT = ROWS * PARALLEL
 
 app = Flask(__name__)
 manager = None   # wird in main() gesetzt
@@ -115,8 +124,9 @@ def main():
     manager = DisplayManager(options)
 
     print(f"Matrix Display Server gestartet – Port {PORT}")
-    print(f"Panel: {ROWS}×{COLS}px, chain={CHAIN}, parallel={PARALLEL}, "
-          f"slowdown={SLOWDOWN}, brightness={BRIGHTNESS}%")
+    print(f"Panels: {ROWS}×{COLS}px, chain={CHAIN}, parallel={PARALLEL}")
+    print(f"Gesamtauflösung: {TOTAL_WIDTH}×{TOTAL_HEIGHT}px")
+    print(f"Hardware: slowdown={SLOWDOWN}, brightness={BRIGHTNESS}%")
     print(f"Endpunkte: POST /display  POST /clear  POST /brightness  GET /status")
 
     app.run(host='0.0.0.0', port=PORT, threaded=True)
