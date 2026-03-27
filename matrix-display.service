@@ -1,0 +1,23 @@
+[Unit]
+Description=LED Matrix Display Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=INSTALL_DIR
+ExecStart=/usr/bin/python3 INSTALL_DIR/server.py
+Environment=MATRIX_ROWS=64
+Environment=MATRIX_COLS=64
+Environment=MATRIX_CHAIN=1
+Environment=MATRIX_PARALLEL=1
+Environment=MATRIX_BRIGHTNESS=80
+Environment=MATRIX_SLOWDOWN=4
+Environment=SERVER_PORT=5050
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
