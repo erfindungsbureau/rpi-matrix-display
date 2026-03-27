@@ -12,8 +12,8 @@
     "chain":    5,
     "parallel": 2,
 
-    "_comment_pixel_mapper": "Verkabelung von hinten L→R = von vorne gespiegelt → Mirror:H. Leer lassen falls korrekt.",
-    "pixel_mapper": "Mirror:H"
+    "_comment_pixel_mapper": "Rotate:180 wenn Panels um 180° gedreht montiert (korrigiert beides: gespiegelt + auf dem Kopf).",
+    "pixel_mapper": "Rotate:180;Mirror:H"
   },
 
   "hardware": {
