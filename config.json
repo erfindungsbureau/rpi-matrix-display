@@ -13,12 +13,12 @@
     "parallel": 2,
 
     "_comment_pixel_mapper": "Rotate:180 wenn Panels um 180° gedreht montiert (korrigiert beides: gespiegelt + auf dem Kopf).",
-    "pixel_mapper": "Rotate:180;Mirror:H"
+    "pixel_mapper": "Rotate:180"
   },
 
   "hardware": {
     "_comment_gpio_slowdown": "1=RPi3, 2=RPi3+, 4=RPi4 – erhöhen bei Flackern",
-    "gpio_slowdown": 2,
+    "gpio_slowdown": 5,
     "brightness":    80
   },
 

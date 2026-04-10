@@ -146,7 +146,8 @@ def main():
     options.gpio_slowdown       = SLOWDOWN
     options.brightness          = BRIGHTNESS
     options.pixel_mapper_config = PIXEL_MAPPER
-    options.drop_privileges     = False       # läuft als root via systemd
+    options.drop_privileges     = False
+    options.disable_hardware_pulsing = True       # läuft als root via systemd
 
     manager = DisplayManager(options)
 
