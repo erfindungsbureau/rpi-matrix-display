@@ -175,6 +175,7 @@ class DisplayManager:
                 elif t == 'image':     self._do_image(cmd)
                 elif t == 'gif':       self._do_gif(cmd)
                 elif t == 'animation': self._do_animation(cmd)
+                elif t == 'split':     self._do_split(cmd)
                 elif t == 'clear':     self._do_clear()
                 else:
                     print(f'Unbekannter Typ: {t}')
@@ -435,3 +436,72 @@ class DisplayManager:
         except Exception as e:
             print(f'Bild-Fehler: {e}')
         return None
+
+    def _do_split(self, cmd: dict):
+        """Zwei statische Zeilen oben + scrollender Ticker unten."""
+        lines         = cmd.get('lines', [])
+        color         = parse_rgb(cmd.get('color', '#FFFFFF'), default=(255, 255, 255))
+        bgcolor       = parse_rgb(cmd.get('bgcolor', '#000000'), default=(0, 0, 0))
+        ticker        = str(cmd.get('ticker', ''))
+        ticker_color  = parse_rgb(cmd.get('ticker_color', '#FFFF00'), default=(255, 255, 0))
+        speed         = float(cmd.get('speed', 30))
+        duration      = float(cmd.get('duration', 0))
+        style         = cmd.get('style', 'bold')
+
+        # Bereiche: obere 75% fuer statische Zeilen, untere 25% fuer Ticker
+        ticker_h  = max(16, self._height // 5)
+        static_h  = self._height - ticker_h
+
+        # Font fuer statische Zeilen (auto-fit)
+        font_path = self._find_system_font(style)
+        joined    = '\n'.join(lines) if lines else ''
+        if font_path and joined:
+            size     = self._fit_font_size(font_path, joined, self._width - 4, static_h - 4)
+            st_font  = ImageFont.truetype(font_path, int(size))
+        else:
+            st_font  = ImageFont.load_default()
+
+        # Ticker-Font
+        ticker_size = ticker_h - 4
+        tk_font = ImageFont.truetype(font_path, ticker_size) if font_path else ImageFont.load_default()
+
+        # Ticker-Breite messen
+        dummy    = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+        tk_bb    = dummy.textbbox((0, 0), ticker, font=tk_font)
+        ticker_w = tk_bb[2] - tk_bb[0]
+        tk_y     = -tk_bb[1] + (ticker_h - (tk_bb[3] - tk_bb[1])) // 2
+
+        # Statisches Bild fuer oberen Bereich einmal rendern
+        top_img  = Image.new('RGB', (self._width, static_h), bgcolor)
+        top_draw = ImageDraw.Draw(top_img)
+        if joined:
+            bb = top_draw.multiline_textbbox((0, 0), joined, font=st_font, align='center')
+            px = (self._width - (bb[2] - bb[0])) // 2 - bb[0]
+            py = (static_h    - (bb[3] - bb[1])) // 2 - bb[1]
+            top_draw.multiline_text((px, py), joined, fill=color, font=st_font, align='center')
+
+        fps    = 30
+        delay  = 1.0 / fps
+        pf     = speed / fps
+        start  = time.time()
+        offset = 0.0
+
+        while not self._should_stop():
+            if duration > 0 and time.time() - start > duration:
+                break
+
+            frame = Image.new('RGB', (self._width, self._height), bgcolor)
+            frame.paste(top_img, (0, 0))
+
+            # Ticker zeichnen – Text auf breitem Streifen, dann x_pos verschieben
+            tk_img = Image.new('RGB', (ticker_w + self._width * 2, ticker_h), bgcolor)
+            ImageDraw.Draw(tk_img).text((self._width - tk_bb[0], tk_y), ticker, fill=ticker_color, font=tk_font)
+            x_pos  = int(self._width - offset)
+            strip  = tk_img.crop((self._width - x_pos, 0, self._width - x_pos + self._width, ticker_h))
+            frame.paste(strip, (0, static_h))
+
+            self._matrix.SetImage(frame)
+            offset += pf
+            if offset >= ticker_w + self._width:
+                offset = 0.0
+            time.sleep(delay)
